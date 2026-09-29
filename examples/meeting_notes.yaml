@@ -1,0 +1,11 @@
+modules:
+  reader:  { role: quarantined, tools: [read_drive],  can_call: [] }
+  planner: { role: privileged,  tools: [],            can_call: [reader, sender] }
+  sender:  { role: gated,       tools: [send_email],  approve: policy }
+
+flows:
+  reader -> planner: { schema: EmailSummary }
+  planner -> sender: { require_provenance: [user, reader] }
+
+audit:
+  retain: 90d

@@ -1,0 +1,34 @@
+# TreeRing
+
+> TreeRing is an open-source (Apache-2.0) Python security layer for LLM agents. It defends against prompt injection by isolation instead of detection: a privileged planner never sees untrusted data, quarantined readers have no tools, values between modules are restricted to declared schemas and carry provenance tags (source, allowed readers), and every decision is appended to a tamper-evident hash-chained audit log with human-in-the-loop approval where policy requires it. Named after tree rings (dendrochronology; Korean: 나이테).
+
+Repository: https://github.com/jiwoomap/treering
+License: Apache-2.0
+Language: Python 3.11+
+Status: early prototype (v0.0.1)
+
+## Core concepts
+
+- Roles: `privileged` (plans; no tools; never sees untrusted data), `quarantined` (reads untrusted data via tools; cannot call anything; output must match a schema), `gated` (acts via tools; subject to provenance policy and approval).
+- Manifest: a YAML file declaring modules, roles, tools, `can_call` edges, and allowed `flows` with schemas and `require_provenance`. Undeclared flows are denied (default-deny).
+- Provenance tag: every value is `Tagged(value, sources, readers)`. Tool outputs set sources and readers; gated tools check them (e.g. an email recipient must be among the document's readers, else a human is asked).
+- Opaque handles: the planner references extracted values as `$binding.field` and never sees their contents; the runtime resolves them when calling gated tools.
+- Ring log: append-only, SHA-256 hash-chained record of every plan, tool call, extraction, approval, and block. `treering verify` detects any edit, deletion, or reorder.
+
+## Principles
+
+1. Default-deny  2. Least knowledge  3. Schema only between modules  4. Deterministic enforcement (no LLM decides policy)  5. Monotonic narrowing of privileges  6. Single writer for the log  7. Observe, don't train on human-visible traces  8. Humans are a budget  9. Never touch agent code (proxy).
+
+## Files
+
+- [README](https://github.com/jiwoomap/treering/blob/main/README.md): problem, tree-ring inspiration, architecture, principles, scope, FAQ.
+- [examples/meeting_notes.yaml](https://github.com/jiwoomap/treering/blob/main/examples/meeting_notes.yaml): reference manifest (reader/planner/sender).
+- [src/treering/runtime.py](https://github.com/jiwoomap/treering/blob/main/src/treering/runtime.py): least-knowledge executor.
+- [src/treering/manifest.py](https://github.com/jiwoomap/treering/blob/main/src/treering/manifest.py): manifest model and validation rules.
+- [src/treering/provenance.py](https://github.com/jiwoomap/treering/blob/main/src/treering/provenance.py): tagged values.
+- [src/treering/ringlog.py](https://github.com/jiwoomap/treering/blob/main/src/treering/ringlog.py): hash-chained log.
+- [CITATION.cff](https://github.com/jiwoomap/treering/blob/main/CITATION.cff): citation metadata and references.
+
+## Related work
+
+CaMeL (Google DeepMind, 2025) for the privileged/quarantined split and capability tags; Progent (UC Berkeley, 2025) for JSON-Schema tool policies and monotonic narrowing; AI Control (Redwood Research, 2024) for trusted/untrusted separation and audit budgets; Chain of Thought Monitorability (2025) for the observe-don't-train principle. Tool-call gates with hash-chained logs also exist in Warden, Marchward, AEGIS, AgentGuard, kriya, Bastion; TreeRing differs by gating what each module may know, not only what it may execute.

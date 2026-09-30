@@ -1,0 +1,63 @@
+cff-version: 1.2.0
+message: "If you use TreeRing, please cite it as below."
+type: software
+title: "TreeRing: least-knowledge security layer for LLM agents"
+abstract: >-
+  TreeRing is an open-source security layer for LLM agents that defends against
+  prompt injection by isolation rather than detection. A privileged planner never
+  sees untrusted data, quarantined readers have no tools, values between modules
+  are restricted to declared schemas and carry provenance tags, and every decision
+  is appended to a tamper-evident hash-chained audit log with human-in-the-loop
+  approval where policy requires it. The design is inspired by tree rings
+  (dendrochronology), which record each year's conditions as a by-product of growth.
+authors:
+  - name: "jiwoomap"
+    email: "jiwoomap@gmail.com"
+version: 0.0.1
+date-released: 2026-09-30
+license: Apache-2.0
+repository-code: "https://github.com/jiwoomap/treering"
+url: "https://github.com/jiwoomap/treering"
+keywords:
+  - AI agent security
+  - LLM security
+  - prompt injection
+  - information flow control
+  - capability-based security
+  - least privilege
+  - provenance
+  - audit log
+  - tamper-evident log
+  - human-in-the-loop
+  - AI safety
+  - AI governance
+  - Model Context Protocol
+references:
+  - type: article
+    title: "Defeating Prompt Injections by Design (CaMeL)"
+    authors:
+      - family-names: Debenedetti
+        given-names: Edoardo
+    year: 2025
+    url: "https://arxiv.org/abs/2503.18813"
+  - type: article
+    title: "Progent: Securing AI Agents with Privilege Control"
+    authors:
+      - family-names: Shi
+        given-names: Tianneng
+    year: 2025
+    url: "https://arxiv.org/abs/2504.11703"
+  - type: article
+    title: "AI Control: Improving Safety Despite Intentional Subversion"
+    authors:
+      - family-names: Greenblatt
+        given-names: Ryan
+    year: 2024
+    url: "https://arxiv.org/abs/2312.06942"
+  - type: article
+    title: "Chain of Thought Monitorability: A New and Fragile Opportunity for AI Safety"
+    authors:
+      - family-names: Korbak
+        given-names: Tomek
+    year: 2025
+    url: "https://arxiv.org/abs/2507.11473"

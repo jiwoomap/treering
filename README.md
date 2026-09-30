@@ -1,9 +1,15 @@
-# TreeRing
+# TreeRing — least-knowledge security layer for LLM agents
+
+[![CI](https://github.com/jiwoomap/treering/actions/workflows/ci.yml/badge.svg)](https://github.com/jiwoomap/treering/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
+
+**TreeRing** is an open-source (Apache-2.0) Python security layer for LLM agents that defends against **prompt injection** by *isolation* rather than detection: the privileged planner never sees untrusted data, quarantined readers have no tools, values carry **provenance tags**, and every decision is written to a **tamper-evident, hash-chained audit log** with **human-in-the-loop approval** where it matters. The design borrows from dendrochronology — tree rings (나이테) record the conditions of each year without the tree ever being asked.
 
 > A tree does not grow in order to keep records. Growing *is* the record.
 > If we can build AI agents the same way, we can cut them open later and read what happened.
 
-**Status**: draft (2026-09) · **License**: [Apache-2.0](LICENSE)
+**Status**: early prototype (v0.0.1, 2026-09) · **License**: [Apache-2.0](LICENSE) · **Keywords**: AI agent security, LLM security, prompt injection defense, information flow control, capability-based security, provenance, audit log, AI safety, MCP
 
 ---
 
@@ -251,6 +257,53 @@ audit:
 
 ## 11. Next steps
 
-1. Review this document → fix the scope
-2. Python package skeleton (`pyproject.toml`, `src/treering/`, `tests/`)
-3. Start with the Manifest schema (smallest piece; everything else depends on it)
+1. Real LLM adapters for `Planner` / `Extractor` (OpenAI, Anthropic, local via structured output)
+2. HTTP/MCP proxy mode so it attaches with zero agent-code changes
+3. Audit budget: suspicion scoring and top-N% routing to humans
+4. Run diff and drift detection
+5. AgentDojo evaluation
+
+## FAQ
+
+### How does TreeRing prevent prompt injection?
+By never showing untrusted content to the module that decides what to do. The privileged planner sees only the user's request and opaque handles (`$s.recipient`); a quarantined reader sees the untrusted document but has no tools; a gated sender can act but only on values whose provenance tags permit it. An injected instruction has no path from the document to an action.
+
+### How is this different from guardrails or output filters?
+Guardrails inspect what the model *says* after it has already read the poisoned input. TreeRing removes the read. Guardrails remain useful as an extra layer; TreeRing does not replace them.
+
+### How is this different from tool-call permission gates (Warden, Marchward, AEGIS, AgentGuard, kriya)?
+Those gate *what the agent executes* and log it. TreeRing additionally gates *what each module is allowed to know* (least knowledge), forces structured schemas between modules, and treats human review as a fixed budget. The audit-log part is shared ground; the isolation part is not.
+
+### What is the relationship to CaMeL (Google DeepMind)?
+TreeRing implements CaMeL's privileged/quarantined split and capability tags as a reusable runtime with a declarative manifest, and adds the provenance log and approval budget. See §9.
+
+### Does it work without an LLM?
+Yes — the demo and tests run with fake planner/extractor implementations so the security properties can be verified deterministically. Real LLM adapters plug into the `Planner` and `Extractor` protocols.
+
+### Why "TreeRing"?
+Tree rings (나이테, annual growth rings) are a record that is produced by the act of growing, cannot be erased without destroying the tree, and is read later by someone other than the tree. Those are the three properties we want from an agent's decision history.
+
+## Citation
+
+If you reference this work, please cite it using the metadata in [`CITATION.cff`](CITATION.cff).
+
+```bibtex
+@software{treering2026,
+  author  = {jiwoomap},
+  title   = {TreeRing: least-knowledge security layer for LLM agents},
+  year    = {2026},
+  url     = {https://github.com/jiwoomap/treering},
+  license = {Apache-2.0}
+}
+```
+
+---
+
+<details>
+<summary>한국어 요약 (Korean summary)</summary>
+
+**TreeRing(나이테)** 은 LLM 에이전트를 위한 오픈소스(Apache-2.0) 보안 레이어입니다. 프롬프트 인젝션을 *탐지*가 아니라 *격리*로 막습니다: 계획을 세우는 privileged 모듈은 외부 데이터를 절대 보지 않고, 외부 데이터를 읽는 quarantined 모듈은 도구가 없으며, 모듈 사이에는 정해진 스키마의 값만 흐릅니다. 모든 값에는 출처(provenance) 태그가 붙고, 모든 결정은 해시 체인으로 연결된 변조 감지 로그에 남으며, 필요한 지점에서만 사람이 승인합니다. 나무의 나이테가 그 해의 기후를 나무에게 묻지 않고도 기록하듯, 에이전트의 결정 이력을 나중에 잘라서 읽을 수 있게 하는 것이 목표입니다.
+
+키워드: AI 에이전트 보안, LLM 보안, 프롬프트 인젝션 방어, 정보 흐름 제어, 최소 지식, 출처 추적, 감사 로그, AI 안전, MCP
+
+</details>

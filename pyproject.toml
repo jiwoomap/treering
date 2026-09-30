@@ -1,15 +1,41 @@
 [project]
 name = "treering"
 version = "0.0.1"
-description = "Isolation, provenance and audit layer for AI agents. Every decision leaves a ring."
+description = "Least-knowledge security layer for LLM agents: prompt-injection isolation, provenance tags, human-in-the-loop approval, tamper-evident audit log."
 readme = "README.md"
 license = { text = "Apache-2.0" }
 requires-python = ">=3.11"
 authors = [{ name = "jiwoomap", email = "jiwoomap@gmail.com" }]
+keywords = [
+    "ai-security", "llm-security", "agent-security", "ai-agents", "llm-agents",
+    "prompt-injection", "information-flow-control", "capability-based-security",
+    "least-privilege", "provenance", "audit-log", "tamper-evident", "hash-chain",
+    "human-in-the-loop", "ai-safety", "ai-governance", "mcp", "guardrails",
+]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
 dependencies = [
     "pydantic>=2.7",
     "pyyaml>=6.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/jiwoomap/treering"
+Repository = "https://github.com/jiwoomap/treering"
+Issues = "https://github.com/jiwoomap/treering/issues"
+Documentation = "https://github.com/jiwoomap/treering#readme"
 
 [project.scripts]
 treering = "treering.cli:main"

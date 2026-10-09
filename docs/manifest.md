@@ -62,9 +62,11 @@ Schemas are Pydantic models with `extra="forbid"` and strict mode:
 from pydantic import Field
 from treering import schemas
 
+
 class TicketSummary(schemas.StrictSchema):
     ticket_id: str = Field(pattern=r"^[A-Z]+-\d+$")
     priority: int = Field(ge=1, le=4)
+
 
 schemas.register("TicketSummary", TicketSummary)
 ```

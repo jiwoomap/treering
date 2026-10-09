@@ -70,6 +70,7 @@ def run_hook(
     log_path: Path = DEFAULT_LOG,
     deny: list[str] | None = None,
     ask: list[str] | None = None,
+    module: str = "claude-code",
 ) -> HookResult:
     name = str(event.get("hook_event_name", ""))
     tool = str(event.get("tool_name", "?"))
@@ -77,7 +78,7 @@ def run_hook(
     summary = summarize(tool_input)
     payload: dict[str, Any] = {
         RUN_ID: event.get("session_id"),
-        "module": "claude-code",
+        "module": str(event.get("agent", module)),
         "tool_use_id": event.get("tool_use_id"),
         "cwd": event.get("cwd"),
         "summary": summary,
@@ -109,10 +110,10 @@ def run_hook(
     return HookResult(stdout, 0)
 
 
-def main_from_stdin(log_path: Path, deny: list[str], ask: list[str]) -> int:
+def main_from_stdin(log_path: Path, deny: list[str], ask: list[str], module: str) -> int:
     try:
         event = json.load(sys.stdin)
-        result = run_hook(event, log_path, deny, ask)
+        result = run_hook(event, log_path, deny, ask, module)
     except Exception as e:
         print(f"treering hook: {e}", file=sys.stderr)
         return 1

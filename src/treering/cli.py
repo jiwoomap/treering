@@ -100,6 +100,7 @@ def main(argv: list[str] | None = None) -> int:
     h.add_argument("--log", default=None, help=f"ring log path (default: {DEFAULT_LOG})")
     h.add_argument("--deny", action="append", default=[], help="regex; matching calls are denied")
     h.add_argument("--ask", action="append", default=[], help="regex; matching calls ask a human")
+    h.add_argument("--module", default="claude-code", help="writer name recorded in each ring")
 
     d = sub.add_parser("demo", help="run the meeting-notes demo")
     d.add_argument("--log", help="persist rings here (.jsonl); creates a sealing key if missing")
@@ -120,7 +121,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "hook":
         from treering.hook import main_from_stdin
 
-        return main_from_stdin(Path(args.log) if args.log else DEFAULT_LOG, args.deny, args.ask)
+        return main_from_stdin(
+            Path(args.log) if args.log else DEFAULT_LOG, args.deny, args.ask, args.module
+        )
 
     try:
         if args.cmd == "verify":

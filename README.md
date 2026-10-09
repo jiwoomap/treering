@@ -128,7 +128,7 @@ The demo runs the "send Bob the document from the meeting notes" scenario three 
 
 In all three, the planner's prompts never contain the notes. Every step lands in a hash-chained ring log stamped with a timestamp and run id; `treering log` shows it as a timeline grouped by run. `treering verify` checks three things: the hash chain (catches edits), the **seals** (catches edits even when the attacker recomputes every hash after them), and the **anchors** (catches rewriting or truncating the tail). See [Ring Log](#ring-log--history) for how.
 
-## Attach it to Claude Code (one hook, zero agent code)
+## Attach it to Claude Code or opencode (one hook, zero agent code)
 
 The fastest way to see real rings: let Claude Code call `treering hook` on every tool use. The hook runs as a **separate process** from the agent — which is exactly what the single-writer principle needs — reads the tool call as JSON on stdin, appends one sealed ring, and (optionally) denies or asks.
 
@@ -161,6 +161,17 @@ What each ring records: the session id (as `run_id`), tool name, a short summary
 
 The hook is deterministic and never consults a model (principle 4). It also never blocks the agent on its own failure: if it cannot write the log it prints to stderr and exits 1, which Claude Code treats as a warning, not a denial.
 
+### opencode
+
+Same hook, called from a plugin. Copy [`integrations/opencode/treering.ts`](integrations/opencode/treering.ts) to `~/.config/opencode/plugin/treering.ts` (all projects) or `.opencode/plugin/treering.ts` (this project). It forwards `tool.execute.before` / `tool.execute.after` to `treering hook` and throws when the hook says `deny`. Configure through the environment:
+
+```sh
+export TREERING_LOG=~/.treering/rings.jsonl        # same log as Claude Code, or a separate one
+export TREERING_DENY='rm -rf,git push --force'     # comma-separated regexes; unset = observe only
+```
+
+Rings from opencode carry `module=opencode`, so one log can hold both agents and `treering log --runs` still separates sessions.
+
 ## How verify tells the difference — a three-ring example
 
 Say the log has three rings and started from root key `k₀`:
@@ -186,6 +197,42 @@ An attacker wants ring 1 to say `approved=true`.
 | `anchors` | does the head still match the copy kept outside? | only someone who also reached the outside copy |
 
 **What still wins:** steal `k₃` *now* and write fake rings from 3 onward. Those are sealed with a legitimate key; the log cannot tell them from the real writer's. Everything before ring 3 is safe (the ratchet's promise); everything after depends on trusting the writer — which is why the writer should live in its own process (the hook above does; the in-process `Runtime` does not yet).
+
+## Detection — reading the rings for things that should not happen
+
+Rings are only useful if something reads them. We cannot enumerate every bad action in advance, so detection runs on two axes, and the output of both is not a verdict but a **ranking of where a human should look**.
+
+### Rules — information flow, not keywords
+
+The strongest signal is already in every ring: `sources` and `readers`. Exfiltration has one shape — *a value that came from outside leaves to a party that was not allowed to read it*. The demo's `send_email` policy is that rule in one line; it needs no list of bad addresses and no understanding of the text. The same shape applies to the Claude Code hook as a sequence inside one `run_id`:
+
+| Pattern | Reads as |
+|---|---|
+| `Read(~/.ssh/*, .env, *.pem)` → `Bash(curl\|nc\|scp)` or `WebFetch` | something sensitive may have left |
+| network call to a host never seen in this log | new destination |
+| `git push` to a remote that differs from earlier in the session | redirected output |
+| `sources ⊄ allowed` on a gated tool | provenance violation (already enforced) |
+
+Rules are deterministic code (principle 4). They run first and can `deny`/`ask`; everything else only scores.
+
+### Baselines — ring width
+
+A ring that is suddenly thick means something happened that year. Per decision we record (or will record) tokens, elapsed time, calls made, bytes read; per session, the tool mix, number of files read, first-seen paths and hosts, time of day. A score is how many standard deviations a ring sits from this agent's last 30 days. No model is consulted.
+
+### Cross-dating — other trees
+
+The same request a week ago took 4 rings; today it takes 9 and calls `read_drive` three extra times — that is *run diff*. Across deployments sharing a manifest: if only mine shifts, suspect compromise; if all shift together, the provider changed the model. Only a log that has been kept for a while can answer this.
+
+### Audit budget
+
+Scores feed a queue; a human sees the top N% per day, and the human's verdict becomes a ring too. Verdicts tune thresholds but are never used as a training signal for the model (principle 7).
+
+### Limitations of detection
+
+- Rings record behaviour, not intent. A legitimate backup and an exfiltration can look identical; that is why the output is a queue, not a block.
+- Baselines need history. The first occurrence of a new attack has nothing to deviate from, so rules must exist before statistics.
+- Slow exfiltration does not thicken any single ring; it needs cumulative counters over days.
+- If a model assigns the score, that model can be prompted into scoring low. Scoring stays in code; a model may only summarise a ring for the reviewer.
 
 ## 5. What we are building
 
@@ -261,7 +308,7 @@ audit:
 
 ### v0.2
 
-- [ ] Audit budget and suspicion scoring
+- [ ] Audit budget and suspicion scoring (see [Detection](#detection--reading-the-rings-for-things-that-should-not-happen))
 - [ ] Run diff
 - [ ] Monotonic-narrowing check for policy updates (set comparison → SMT if needed)
 - [ ] Web viewer
@@ -293,7 +340,7 @@ audit:
 - Log tampering is detected
 - Approval requests are under 10% of all tool calls
 
-## 8. Limits — what rings cannot do
+## 8. Limitations
 
 - Rings record **behavior**, not **intent**. A model's internal representations belong to other tools (SAE probes and the like).
 - A perfect log means nothing if **nobody reads it**. That is why the audit budget is a principle.

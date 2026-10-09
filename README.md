@@ -128,6 +128,65 @@ The demo runs the "send Bob the document from the meeting notes" scenario three 
 
 In all three, the planner's prompts never contain the notes. Every step lands in a hash-chained ring log stamped with a timestamp and run id; `treering log` shows it as a timeline grouped by run. `treering verify` checks three things: the hash chain (catches edits), the **seals** (catches edits even when the attacker recomputes every hash after them), and the **anchors** (catches rewriting or truncating the tail). See [Ring Log](#ring-log--history) for how.
 
+## Attach it to Claude Code (one hook, zero agent code)
+
+The fastest way to see real rings: let Claude Code call `treering hook` on every tool use. The hook runs as a **separate process** from the agent — which is exactly what the single-writer principle needs — reads the tool call as JSON on stdin, appends one sealed ring, and (optionally) denies or asks.
+
+```sh
+uv tool install .                                   # puts `treering` on PATH
+treering keygen ~/.treering/rings.jsonl             # once; keep the printed root key away from the agent
+```
+
+`~/.claude/settings.json` (all projects) or `.claude/settings.json` (this project):
+
+```json
+{
+  "hooks": {
+    "PreToolUse":  [{ "matcher": ".*", "hooks": [{ "type": "command", "command": "treering hook --deny 'rm -rf' --ask 'git push'", "timeout": 10 }] }],
+    "PostToolUse": [{ "matcher": ".*", "hooks": [{ "type": "command", "command": "treering hook", "timeout": 10 }] }]
+  }
+}
+```
+
+Then work as usual and look at the rings:
+
+```sh
+treering log ~/.treering/rings.jsonl --runs          # one line per Claude Code session
+treering log ~/.treering/rings.jsonl --run <id>      # every tool call in that session
+treering anchor ~/.treering/rings.jsonl --to ~/Dropbox/anchors.jsonl   # somewhere the agent can't write
+treering verify ~/.treering/rings.jsonl --key <root> --anchors ~/Dropbox/anchors.jsonl
+```
+
+What each ring records: the session id (as `run_id`), tool name, a short summary (the command, file path, URL…), a SHA-256 of the full input, the decision, and for `PostToolUse` a hash of the output. Full inputs and outputs are **not** stored — the hash is enough to prove later what was passed, without leaking it into the log. `--deny` / `--ask` are plain regexes over the summary; without them the hook is observe-only, which is the recommended first week. Parallel tool calls are serialised with a file lock so the seal ratchet never skips.
+
+The hook is deterministic and never consults a model (principle 4). It also never blocks the agent on its own failure: if it cannot write the log it prints to stderr and exits 1, which Claude Code treats as a warning, not a denial.
+
+## How verify tells the difference — a three-ring example
+
+Say the log has three rings and started from root key `k₀`:
+
+```
+ring 0  "plan"             hash=A   seal=HMAC(k₀, A)   → k₁ = sha256(k₀), k₀ discarded
+ring 1  "approved=false"   hash=B   seal=HMAC(k₁, B)   → k₂ = sha256(k₁), k₁ discarded
+ring 2  "blocked"          hash=C   seal=HMAC(k₂, C)   → k₃ = sha256(k₂), k₂ discarded
+```
+
+Only `k₃` is left on disk (for the next ring). The auditor has `k₀` in a safe. Last night an anchor `{seq: 2, hash: C}` was copied elsewhere.
+
+An attacker wants ring 1 to say `approved=true`.
+
+**Attempt 1 — just edit it.** `hash` still says `B`, but recomputing from the new content gives `B'`. → `chain TAMPERED at ring 1`. Any hash chain catches this.
+
+**Attempt 2 — edit it and recompute every hash after it.** Now ring 1 has `B'`, ring 2 has `C'`, and the chain is self-consistent. → `chain intact`. **A plain hash chain is fooled here.** But the attacker only holds `k₃`; forging ring 1's seal needs `k₁`, which no longer exists anywhere and cannot be derived backwards from `k₃`. The old seal `HMAC(k₁, B)` stays in the file next to the new hash `B'`. The auditor replays the ratchet from `k₀`: ring 0 matches, ring 1 does not. → `seals BROKEN at ring 1`. And the anchor still says ring 2 should be `C`, not `C'`. → `anchors MISMATCH at seq 2`.
+
+| line | the question it answers | who can fool it |
+|---|---|---|
+| `chain` | is the file consistent with itself? | anyone who recomputes hashes — there is no secret |
+| `seals` | was each ring written by whoever held *that ring's* key? | only someone holding a key that has since been destroyed |
+| `anchors` | does the head still match the copy kept outside? | only someone who also reached the outside copy |
+
+**What still wins:** steal `k₃` *now* and write fake rings from 3 onward. Those are sealed with a legitimate key; the log cannot tell them from the real writer's. Everything before ring 3 is safe (the ratchet's promise); everything after depends on trusting the writer — which is why the writer should live in its own process (the hook above does; the in-process `Runtime` does not yet).
+
 ## 5. What we are building
 
 ```
@@ -191,6 +250,7 @@ audit:
 ### MVP (v0.1)
 
 - [ ] Manifest schema + validator
+- [x] Claude Code hook (`treering hook`): separate-process writer, observe-first, regex deny/ask
 - [ ] Gateway: LLM proxy (OpenAI-compatible) + MCP proxy (stdio/HTTP)
 - [ ] Provenance tag propagation + schema enforcement + default-deny flows
 - [ ] Tool-call allowlist (JSON Schema)

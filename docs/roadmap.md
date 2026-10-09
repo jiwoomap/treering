@@ -18,6 +18,7 @@ description: TreeRing roadmap - LLM adapters, HTTP/MCP proxy mode, audit budget 
 - [x] Forward-secure seals (HMAC key ratchet) and head anchors; `treering keygen | anchor | verify --key --anchors`
 - [x] `treering log` text timeline — grouped by run, `--runs`, `--run ID`, `--json`; warns if the chain is broken
 - [ ] `Planner` / `Extractor` adapters for OpenAI, Anthropic and local models (structured output)
+- [x] Claude Code hook (`treering hook`) — separate-process writer, observe-first, `--deny/--ask` regexes
 - [ ] HTTP proxy mode (OpenAI-compatible) and MCP proxy (stdio / HTTP) so it attaches with zero agent-code changes
 - [ ] AgentDojo run with security / utility numbers
 

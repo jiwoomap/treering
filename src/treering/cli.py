@@ -4,7 +4,9 @@ import argparse
 import json
 import sys
 from dataclasses import asdict
+from pathlib import Path
 
+from treering.hook import DEFAULT_LOG
 from treering.manifest import ManifestError, load_manifest
 from treering.ringlog import (
     RingLog,
@@ -94,6 +96,11 @@ def main(argv: list[str] | None = None) -> int:
     lg.add_argument("--runs", action="store_true", help="list runs instead of rings")
     lg.add_argument("--json", action="store_true", help="emit rings as JSON lines")
 
+    h = sub.add_parser("hook", help="Claude Code PreToolUse/PostToolUse hook: reads JSON on stdin")
+    h.add_argument("--log", default=None, help=f"ring log path (default: {DEFAULT_LOG})")
+    h.add_argument("--deny", action="append", default=[], help="regex; matching calls are denied")
+    h.add_argument("--ask", action="append", default=[], help="regex; matching calls ask a human")
+
     d = sub.add_parser("demo", help="run the meeting-notes demo")
     d.add_argument("--log", help="persist rings here (.jsonl); creates a sealing key if missing")
 
@@ -110,6 +117,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "keygen":
         return _keygen(args.path)
+    if args.cmd == "hook":
+        from treering.hook import main_from_stdin
+
+        return main_from_stdin(Path(args.log) if args.log else DEFAULT_LOG, args.deny, args.ask)
 
     try:
         if args.cmd == "verify":

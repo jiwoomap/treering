@@ -11,7 +11,7 @@ from pydantic import ValidationError
 from treering import schemas
 from treering.manifest import Manifest, Role
 from treering.provenance import USER, Tagged, merge, tool_source
-from treering.ringlog import RingLog
+from treering.ringlog import RUN_ID, RingLog, new_run_id
 
 
 class NotDeclared(PermissionError):
@@ -97,6 +97,7 @@ class StepRecord:
 @dataclass
 class RunResult:
     steps: list[StepRecord]
+    run_id: str = ""
 
     def ok(self) -> bool:
         return all(s.status == "ok" for s in self.steps)
@@ -120,12 +121,16 @@ class Runtime:
         self.extractors = extractors
         self.tools = tools
         self.approver = approver
-        self.log = log or RingLog()
+        self.log = log if log is not None else RingLog()
         self._privileged = manifest.privileged()
+        self._run_id = ""
 
     def run(self, user_query: str) -> RunResult:
+        self._run_id = new_run_id()
         plan = self.planner.plan(user_query, self._signatures())
-        self.log.append(module=self._privileged, action="plan", steps=len(plan.steps))
+        self._record(
+            module=self._privileged, action="plan", query=user_query, steps=len(plan.steps)
+        )
         env: dict[str, dict[str, Tagged]] = {}
         records: list[StepRecord] = []
         for step in plan.steps:
@@ -139,9 +144,12 @@ class Runtime:
             except (NotDeclared, SchemaViolation, Blocked) as e:
                 action = step.schema if isinstance(step, ReadStep) else step.tool
                 records.append(StepRecord(step.module, action, "blocked", str(e)))
-                self.log.append(module=step.module, action=action, status="blocked", reason=str(e))
+                self._record(module=step.module, action=action, status="blocked", reason=str(e))
                 break
-        return RunResult(records)
+        return RunResult(records, self._run_id)
+
+    def _record(self, **payload: Any) -> None:
+        self.log.append(**{RUN_ID: self._run_id, **payload})
 
     def _signatures(self) -> dict[str, Any]:
         return {
@@ -174,7 +182,7 @@ class Runtime:
             result = self.tools[call.tool].fn(**call.args)
             raw.append(str(result.value))
             tags.append(Tagged(result.value, frozenset({tool_source(call.tool)}), result.readers))
-            self.log.append(
+            self._record(
                 module=step.module, action=f"tool:{call.tool}", readers=sorted(result.readers)
             )
 
@@ -187,7 +195,7 @@ class Runtime:
             ) from e
 
         sources, readers = merge(tags)
-        self.log.append(
+        self._record(
             module=step.module,
             action=f"extract:{step.schema}",
             sources=sorted(sources),
@@ -227,12 +235,12 @@ class Runtime:
             raise Blocked(f"{step.tool} denied by policy")
         if decision is Decision.ask:
             approved = self.approver(f"{step.module} wants {step.tool}", plain)
-            self.log.append(module=step.module, action=f"approval:{step.tool}", approved=approved)
+            self._record(module=step.module, action=f"approval:{step.tool}", approved=approved)
             if not approved:
                 raise Blocked(f"{step.tool} denied by human")
 
         tool.fn(**plain)
-        self.log.append(
+        self._record(
             module=step.module,
             action=f"tool:{step.tool}",
             decision=decision.value,

@@ -7,3 +7,9 @@ dist/
 *.egg-info/
 .pytest_cache/
 site/
+
+# local ring logs
+rings.jsonl
+*.jsonl.key
+*.jsonl.key.tmp
+anchors.jsonl

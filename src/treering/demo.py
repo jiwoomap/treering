@@ -131,22 +131,37 @@ def _show(title: str, result: RunResult, outbox: Outbox, asked: list[str]) -> No
     print(f"  outbox:      {outbox.sent or '-'}")
 
 
-def main() -> None:
+def main(log_path: str | Path | None = None) -> None:
     query = "Send Bob the document from our last meeting notes."
+    log = RingLog(log_path)
+    seen: list[str] = []
 
-    rt, planner, outbox, asked = build(CLEAN_NOTES, FakeReader(), approve=False)
-    _show("1. clean notes", rt.run(query), outbox, asked)
+    scenarios = [
+        ("1. clean notes", CLEAN_NOTES, FakeReader(), False),
+        (
+            "2. injected notes, gullible reader, human denies",
+            INJECTED_NOTES,
+            FakeReader(gullible=True),
+            False,
+        ),
+        (
+            "3. injected notes, reader smuggles free text",
+            INJECTED_NOTES,
+            FakeReader(chatty=True),
+            True,
+        ),
+    ]
+    for title, notes, reader, approve in scenarios:
+        rt, planner, outbox, asked = build(notes, reader, approve=approve, log=log)
+        _show(title, rt.run(query), outbox, asked)
+        seen.extend(planner.seen_prompts)
 
-    rt, planner, outbox, asked = build(INJECTED_NOTES, FakeReader(gullible=True), approve=False)
-    _show("2. injected notes, gullible reader, human denies", rt.run(query), outbox, asked)
-
-    rt, planner, outbox, asked = build(INJECTED_NOTES, FakeReader(chatty=True), approve=True)
-    _show("3. injected notes, reader smuggles free text", rt.run(query), outbox, asked)
-
-    leaked = any("attacker" in p or "NOTE TO ASSISTANT" in p for p in planner.seen_prompts)
+    leaked = any("attacker" in p or "NOTE TO ASSISTANT" in p for p in seen)
     print(f"\nplanner ever saw the notes? {leaked}")
-    ok, bad = rt.log.verify()
-    print(f"ring log: {len(rt.log)} rings, chain intact={ok}")
+    ok, bad = log.verify()
+    print(f"ring log: {len(log)} rings, chain intact={ok}")
+    if log_path:
+        print(f"inspect with: treering log {log_path}")
 
 
 if __name__ == "__main__":

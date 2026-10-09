@@ -10,13 +10,15 @@ description: TreeRing roadmap - LLM adapters, HTTP/MCP proxy mode, audit budget 
 - Manifest with roles, default-deny flows, schema-only quarantined output, 8 validation rules
 - Runtime with opaque handles, provenance tags, gated-tool policies, approval hook
 - Hash-chained ring log with `verify`
-- Injected meeting-notes demo, 21 tests, CI on Python 3.11/3.12
+- Injected meeting-notes demo, CI on Python 3.11/3.12
 
 ## v0.1
 
+- [x] JSONL ring log; every ring stamped with `ts` and `run_id`
+- [x] Forward-secure seals (HMAC key ratchet) and head anchors; `treering keygen | anchor | verify --key --anchors`
+- [x] `treering log` text timeline — grouped by run, `--runs`, `--run ID`, `--json`; warns if the chain is broken
 - [ ] `Planner` / `Extractor` adapters for OpenAI, Anthropic and local models (structured output)
 - [ ] HTTP proxy mode (OpenAI-compatible) and MCP proxy (stdio / HTTP) so it attaches with zero agent-code changes
-- [ ] Ring log on SQLite; `treering log` timeline
 - [ ] AgentDojo run with security / utility numbers
 
 ## v0.2
@@ -34,7 +36,7 @@ description: TreeRing roadmap - LLM adapters, HTTP/MCP proxy mode, audit budget 
 - [ ] **Cross-dating** — compare patterns across deployments sharing a manifest; only mine drifts → compromise, all drift → model update
 - [ ] **Ring width** — record tokens, time and call count per decision; a suddenly thick ring is a signal
 - [ ] Model lineage: weight hash ↔ log entry
-- [ ] External transparency-log anchoring (Sigstore / Rekor)
+- [ ] Publish anchors to a public transparency log (Sigstore / Rekor)
 - [ ] Red-team the protocol with ControlArena
 - [ ] Node editor as a UI over the manifest
 

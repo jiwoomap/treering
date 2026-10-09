@@ -111,7 +111,10 @@ No system today can answer that.
 ```sh
 uv sync
 uv run treering validate examples/meeting_notes.yaml
-uv run treering demo
+uv run treering demo --log rings.jsonl        # creates rings.jsonl.key; prints the root key once
+uv run treering log rings.jsonl               # timeline, one ring per decision
+uv run treering anchor rings.jsonl --to anchors.jsonl
+uv run treering verify rings.jsonl --key <root key> --anchors anchors.jsonl
 uv run pytest
 ```
 
@@ -123,7 +126,7 @@ The demo runs the "send Bob the document from the meeting notes" scenario three 
 | Injected notes, reader is fooled | Extracted recipient is `attacker@evil.com`; the document's readers do not include it, so the send is held for a human, who denies. Nothing sent |
 | Injected notes, reader tries to pass free text | Extra field rejected by the `EmailSummary` schema before it reaches the planner |
 
-In all three, the planner's prompts never contain the notes. Every step lands in a hash-chained ring log; `treering verify` detects any edit.
+In all three, the planner's prompts never contain the notes. Every step lands in a hash-chained ring log stamped with a timestamp and run id; `treering log` shows it as a timeline grouped by run. `treering verify` checks three things: the hash chain (catches edits), the **seals** (catches edits even when the attacker recomputes every hash after them), and the **anchors** (catches rewriting or truncating the tail). See [Ring Log](#ring-log--history) for how.
 
 ## 5. What we are building
 
@@ -140,7 +143,7 @@ User
  │  └─ Approval routing: escalate to a human by risk tier
  │
  ▼
-[Ring Log]  append-only, hash-chained, references model/policy versions
+[Ring Log]  append-only · hash-chained · sealed (key ratchet) · anchorable
  │
  ▼
 [Viewer]    timeline · diff · audit queue (top N%)
@@ -171,8 +174,11 @@ audit:
 
 ### Ring Log — history
 
-- One event = one ring: `{prev_hash, module@version, model_id, policy@version, inputs[provenance], output_hash, approval?}`
-- Optional external anchor: periodically publish the root hash to Sigstore/Rekor.
+- One event = one ring: `{seq, prev_hash, hash, seal, payload: {ts, run_id, module, action, sources, readers, decision, ...}}`. `hash = sha256(prev_hash + payload)`.
+- A hash chain alone only catches *careless* edits: whoever can write the file can edit ring 7 and recompute every hash after it. Two cheap mechanisms close that gap, both stdlib-only:
+  - **Seals (forward-secure key ratchet).** Each ring is sealed with `HMAC(k_i, hash)`; then `k_{i+1} = sha256(k_i)` and `k_i` is discarded. The root key `k_0` is printed once by `treering keygen` and stays with the auditor, not the agent. A key stolen at time *T* lets the attacker forge rings *after* *T* — never before, because those keys no longer exist anywhere. `treering verify --key` replays the ratchet from `k_0`.
+  - **Anchors.** `treering anchor` emits `{seq, hash, ts}` for the head of the log. Keep it where the writer cannot reach — another directory, a git commit, another machine, later a transparency log. `verify --anchors` reports `MISMATCH` if the tail was rewritten and `MISSING` if it was truncated.
+- The key file next to the log also records which ring it expects next; a log that is shorter than that is refused as out of step.
 
 ### Viewer — reading
 
@@ -188,9 +194,9 @@ audit:
 - [ ] Gateway: LLM proxy (OpenAI-compatible) + MCP proxy (stdio/HTTP)
 - [ ] Provenance tag propagation + schema enforcement + default-deny flows
 - [ ] Tool-call allowlist (JSON Schema)
-- [ ] Ring Log (local SQLite, hash chain)
+- [x] Ring Log (JSONL, hash chain, forward-secure seals, anchors)
 - [ ] CLI approval prompt
-- [ ] Minimal viewer (text timeline)
+- [x] Minimal viewer (text timeline — `treering log`)
 - [ ] Security/utility measurement on AgentDojo
 
 ### v0.2
@@ -208,7 +214,7 @@ audit:
 - [ ] **Cross-dating**: anonymously aggregate patterns across deployments sharing a Manifest. Only mine is off → compromise; all shift together → model update
 - [ ] **Ring width**: record tokens, time, and call count per decision. A suddenly thick ring is a signal in itself
 - [ ] Model lineage linkage (weight hash ↔ log entry)
-- [ ] External transparency-log anchoring
+- [ ] Publish anchors to a public transparency log (Sigstore / Rekor)
 - [ ] Red-team the protocol with ControlArena
 - [ ] Node editor (a UI over the Manifest)
 
@@ -231,7 +237,7 @@ audit:
 
 - Rings record **behavior**, not **intent**. A model's internal representations belong to other tools (SAE probes and the like).
 - A perfect log means nothing if **nobody reads it**. That is why the audit budget is a principle.
-- A tree cannot forge its own rings; software can, if the recorder is compromised. Hence a single recorder, outside the agent's code, with the root hash anchored externally.
+- A tree cannot forge its own rings; software can. Seals and anchors make forgery *detectable*, not impossible: an attacker holding the current key can forge every ring from that moment on, and root can delete the file outright — only an anchor kept elsewhere reveals that. The recorder also still runs inside the agent process today; proxy mode (roadmap) moves it out, which is what makes the single-writer principle hold against a compromised agent.
 - It is hard to verify that a module is genuinely "narrow." A fine-tune on top of broad pretraining keeps its latent capabilities.
 
 ## 9. Relationship to existing research and tools
